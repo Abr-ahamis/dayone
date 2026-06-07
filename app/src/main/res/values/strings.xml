@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">dayone</string>
+    <string name="widget_compact_description">DayOne compact streak widget</string>
+    <string name="widget_expanded_description">DayOne expanded streak widget</string>
+</resources>

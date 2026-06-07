@@ -1,0 +1,2433 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DayOne — Widgets & Calendar</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+/* =============================================================
+   DESIGN SYSTEM — mirrors DayOne main app exactly
+   ============================================================= */
+:root {
+  /* Core palette — dark (default) */
+  --bg-deep:      #060b18;
+  --bg-base:      #0a1128;
+  --bg-surface:   #0f1a36;
+  --bg-elevated:  #162040;
+  --bg-glass:     rgba(15,26,54,0.75);
+  --bg-glass2:    rgba(255,255,255,0.04);
+
+  --accent:       #4f8ef7;
+  --accent-glow:  rgba(79,142,247,0.35);
+  --accent-soft:  rgba(79,142,247,0.12);
+  --accent-cyan:  #38d9d9;
+  --accent-green: #2dd87b;
+  --accent-warn:  #ffb547;
+  --accent-red:   #ff4f6d;
+
+  --text-1:  #f0f4ff;
+  --text-2:  #8aa0cc;
+  --text-3:  #4a5980;
+  --text-inv:#060b18;
+
+  --border:       rgba(79,142,247,0.12);
+  --border-on:    rgba(79,142,247,0.4);
+  --shadow-glow:  0 0 40px rgba(79,142,247,0.3);
+
+  /* Typography */
+  --ff-display: 'Bebas Neue', sans-serif;
+  --ff-body:    'DM Sans', sans-serif;
+  --ff-mono:    'DM Mono', monospace;
+
+  /* Geometry */
+  --r-sm: 8px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-xl: 32px;
+  --r-full: 9999px;
+
+  /* Motion */
+  --ease-out:    cubic-bezier(0.16,1,0.3,1);
+  --ease-spring: cubic-bezier(0.34,1.56,0.64,1);
+
+  /* ============================================================
+     STREAK COLOR SYSTEM
+     ============================================================
+     These CSS custom properties define the streak color scale.
+     In the Android app, these values will be computed in:
+       StreakColorEngine.kt → fun getStreakColor(days: Int, streakBreaks: Int): Int
+
+     The green threshold starts at DAY 13 and expands by 1 for
+     every streak break the user accumulates:
+       greenThreshold = 13 + totalStreakBreaks
+
+     Android implementation location:
+       app/src/main/java/com/dayone/engine/StreakColorEngine.kt
+  ============================================================= */
+  --streak-0:   #ff1744;   /* 0 days  — bright red          */
+  --streak-1:   #e53935;   /* 1 day   — deep red            */
+  --streak-2:   #ef5350;   /* 2 days  — slightly light red  */
+  --streak-3:   #f4511e;   /* 3 days  — orange-red          */
+  --streak-4:   #f4511e;   /* 4 days  — orange-red          */
+  --streak-5:   #fb8c00;   /* 5 days  — orange              */
+  --streak-6:   #ffa726;   /* 6 days  — orange              */
+  --streak-7:   #ffa726;   /* 7 days  — orange              */
+  --streak-8:   #c0ca33;   /* 8 days  — yellow-green        */
+  --streak-9:   #c0ca33;   /* 9 days  — yellow-green        */
+  --streak-10:  #aed131;   /* 10 days — yellow-green        */
+  --streak-11:  #43a047;   /* 11 days — green               */
+  --streak-12:  #2dd87b;   /* 12 days — strong green        */
+  --streak-13:  #00c853;   /* 13+ days — progressively richer green */
+}
+
+[data-theme="light"] {
+  --bg-deep:    #eef2ff;
+  --bg-base:    #f4f7ff;
+  --bg-surface: #ffffff;
+  --bg-elevated:#ffffff;
+  --bg-glass:   rgba(255,255,255,0.88);
+  --bg-glass2:  rgba(0,0,0,0.03);
+  --text-1:  #0d1b3e;
+  --text-2:  #4a6090;
+  --text-3:  #9baac8;
+  --border:     rgba(79,142,247,0.15);
+  --border-on:  rgba(79,142,247,0.5);
+}
+
+/* =============================================================
+   RESET & BASE
+   ============================================================= */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--ff-body);
+  background: var(--bg-deep);
+  color: var(--text-1);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+button { font-family: var(--ff-body); cursor: pointer; border: none; background: none; color: inherit; }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* =============================================================
+   ANIMATED BACKGROUND
+   ============================================================= */
+.bg-canvas {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+}
+.bg-canvas::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 15% 10%,  rgba(79,142,247,0.14) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 85% 85%,  rgba(123,111,240,0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 50% 50%,  rgba(56,217,217,0.06) 0%, transparent 60%);
+}
+
+/* =============================================================
+   PAGE SHELL
+   ============================================================= */
+#app {
+  position: relative; z-index: 1;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 20px 100px;
+}
+
+/* Section headings */
+.section-head {
+  margin-bottom: 24px;
+  display: flex; align-items: baseline; gap: 16px;
+}
+.section-title {
+  font-family: var(--ff-display);
+  font-size: 32px;
+  letter-spacing: 1px;
+  color: var(--text-1);
+}
+.section-chip {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--border-on);
+  border-radius: var(--r-full);
+  padding: 4px 12px;
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 60px 0;
+}
+
+/* Size toggle */
+.size-toggle {
+  display: flex; gap: 8px; margin-bottom: 32px;
+}
+.size-btn {
+  padding: 8px 16px;
+  border-radius: var(--r-full);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  background: var(--bg-glass2);
+  border: 1px solid var(--border);
+  transition: all 200ms ease;
+}
+.size-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--border-on);
+  color: var(--accent);
+}
+
+/* Widget display area */
+.widget-stage {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* Theme toggle */
+.theme-bar {
+  position: fixed;
+  top: 20px; right: 20px;
+  z-index: 200;
+  display: flex;
+  gap: 8px;
+}
+.theme-toggle {
+  padding: 8px 16px;
+  border-radius: var(--r-full);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  backdrop-filter: blur(12px);
+  transition: all 200ms ease;
+}
+.theme-toggle:hover { color: var(--text-1); border-color: var(--border-on); }
+
+/* ================================================================
+   STREAK COLOR ENGINE — JS HELPER REFERENCED IN CSS
+   ================================================================
+   In Android this lives in StreakColorEngine.kt.
+   getStreakColor(currentStreak, streakBreaks) returns a color.
+   Calendar cells use getDayColor(dayValue, isCompleted, isMissed).
+   ================================================================ */
+
+/* =============================================================
+   WIDGET BASE STYLES
+   ============================================================= */
+.widget {
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  transition: transform 300ms var(--ease-spring), box-shadow 300ms ease;
+  user-select: none;
+}
+.widget:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+.widget:active {
+  transform: scale(0.97);
+  transition-duration: 120ms;
+}
+
+/* ================================================================
+   WIDGET 1 — COMPACT
+   Sizes: W1×L1 (small) and W2×L2 (medium)
+
+   Android implementation:
+     res/layout/widget_compact_small.xml  (1x1)
+     res/layout/widget_compact_medium.xml (2x2)
+     CompactWidgetProvider.kt
+       → onUpdate(): loads streak from StreakRepository
+       → calls StreakColorEngine.getStreakColor()
+       → RemoteViews.setInt(R.id.widgetRoot, "setBackgroundColor", color)
+       → RemoteViews.setTextViewText(R.id.streakCount, streak.toString())
+     Widget tap: PendingIntent → MainActivity
+   ================================================================ */
+.widget-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Compact small (1×1) */
+.widget-compact.size-small {
+  width: 155px;
+  height: 155px;
+}
+
+/* Compact medium (2×2) */
+.widget-compact.size-medium {
+  width: 330px;
+  height: 330px;
+}
+
+/* Gradient background — driven by streak color */
+.widget-compact .wc-bg {
+  position: absolute;
+  inset: 0;
+  /* Android: set via RemoteViews background color derived from StreakColorEngine */
+  transition: background 800ms ease;
+}
+
+/* Gloss overlay */
+.widget-compact .wc-gloss {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(145deg, rgba(255,255,255,0.18) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Noise texture */
+.widget-compact .wc-noise {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* Day count number — the hero element */
+.widget-compact .wc-number {
+  font-family: var(--ff-display);
+  color: rgba(255,255,255,0.97);
+  line-height: 0.88;
+  position: relative;
+  z-index: 2;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.3);
+  transition: all 400ms var(--ease-spring);
+  /* Android: RemoteViews.setTextViewText(R.id.streakCount, ...) */
+}
+.widget-compact.size-small  .wc-number { font-size: 72px; }
+.widget-compact.size-medium .wc-number { font-size: 140px; }
+
+.widget-compact .wc-label {
+  font-family: var(--ff-body);
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 2;
+  transition: font-size 300ms ease;
+}
+.widget-compact.size-small  .wc-label { font-size: 10px; }
+.widget-compact.size-medium .wc-label { font-size: 14px; }
+
+/* Flame/status icon — bottom-right corner */
+.widget-compact .wc-icon {
+  position: absolute;
+  bottom: 14px; right: 16px;
+  z-index: 2;
+  opacity: 0.7;
+  transition: all 300ms ease;
+}
+.widget-compact.size-small  .wc-icon { font-size: 18px; bottom: 10px; right: 11px; }
+.widget-compact.size-medium .wc-icon { font-size: 30px; }
+
+/* App name watermark */
+.widget-compact .wc-brand {
+  position: absolute;
+  top: 12px; left: 14px;
+  font-family: var(--ff-display);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: rgba(255,255,255,0.5);
+  z-index: 2;
+}
+.widget-compact.size-small .wc-brand { display: none; }
+
+/* Pulse ring animation — shows on milestone days */
+.widget-compact .wc-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+}
+.widget-compact.milestone .wc-ring::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid rgba(255,255,255,0.5);
+  animation: ringPulse 2s ease-in-out infinite;
+}
+@keyframes ringPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 0; transform: scale(1.04); }
+}
+
+/* ================================================================
+   WIDGET 2 — EXPANDED
+   Sizes: W5×L2 (wide, short) and W5×L3 (wide, medium)
+
+   Android grid cell reference (standard Android widget grid):
+     W5 = 5 columns wide  ≈ 250dp
+     L2 = 2 rows tall     ≈ 110dp
+     L3 = 3 rows tall     ≈ 175dp
+
+   Android implementation:
+     res/layout/widget_expanded_5x2.xml
+     res/layout/widget_expanded_5x3.xml
+     ExpandedWidgetProvider.kt
+       → onUpdate(): loads StreakRepository.getStreak()
+       → calls ContribCalendarBuilder.build(days: List<DayEntry>)
+       → generates RemoteViews with colored grid cells
+       → sets left panel text via RemoteViews
+       → Widget tap: PendingIntent → CalendarActivity
+   ================================================================ */
+.widget-expanded {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 8px 40px rgba(0,0,0,0.5),
+    0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ── 5×2 : wide & short — streak + compact calendar side by side ── */
+.widget-expanded.size-5x2 {
+  width: 460px;
+  height: 160px;
+}
+
+/* ── 5×3 : wide & medium — more calendar rows visible ── */
+.widget-expanded.size-5x3 {
+  width: 460px;
+  height: 240px;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   SHARED INNER LAYOUT
+   Left column: streak number + meta  |  Right column: contrib grid
+   ───────────────────────────────────────────────────────────────── */
+.widget-expanded .we-inner {
+  display: grid;
+  grid-template-columns: 148px 1fr;
+  height: 100%;
+  padding: 16px 18px;
+  gap: 14px;
+  position: relative;
+  z-index: 2;
+}
+
+/* 5×3 gets a touch more padding since it has vertical room */
+.widget-expanded.size-5x3 .we-inner {
+  padding: 18px 20px;
+  gap: 16px;
+}
+
+/* ── Left panel ── */
+.widget-expanded .we-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.widget-expanded .we-app-name {
+  font-family: var(--ff-display);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* Streak number — scales with height */
+.widget-expanded .we-streak-count {
+  font-family: var(--ff-display);
+  line-height: 0.85;
+  /* Android: RemoteViews.setTextViewText(R.id.streakCount, ...) */
+  /* Color driven by StreakColorEngine.getStreakColor() */
+}
+.widget-expanded.size-5x2 .we-streak-count { font-size: 68px; }
+.widget-expanded.size-5x3 .we-streak-count { font-size: 96px; }
+
+.widget-expanded .we-streak-label {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.widget-expanded .we-date {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+}
+
+.widget-expanded .we-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.widget-expanded .we-status-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  /* Android: color from StreakColorEngine */
+}
+
+.widget-expanded .we-habit-name {
+  font-family: var(--ff-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* In 5×2, hide the habit name and date row to save vertical space */
+.widget-expanded.size-5x2 .we-date     { display: none; }
+.widget-expanded.size-5x2 .we-habit-name { font-size: 11px; }
+
+/* ── Right panel — contribution calendar ── */
+.widget-expanded .we-right {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.widget-expanded .we-cal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.widget-expanded .we-cal-title {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* ── Mini contrib grid ── */
+.widget-contrib-grid {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.widget-contrib-week {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.widget-contrib-cell {
+  flex: 1;
+  border-radius: 3px;
+  min-height: 0;
+  transition: all 200ms ease;
+  /* Android: drawn via Canvas in ContribCalendarView.kt */
+  /* Color: StreakColorEngine.getDayColor(streakValueAtDay) */
+}
+
+.widget-contrib-cell.empty  { background: rgba(255,255,255,0.05); }
+.widget-contrib-cell.future { background: rgba(255,255,255,0.02); }
+
+/* ── Week day labels (left of grid) ── */
+.we-day-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.we-day-label {
+  font-size: 7px;
+  font-weight: 500;
+  color: var(--text-3);
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+  line-height: 1;
+}
+
+/* In 5×2, only show Mon/Wed/Fri labels to avoid crowding */
+.widget-expanded.size-5x2 .we-day-label:nth-child(1),
+.widget-expanded.size-5x2 .we-day-label:nth-child(3),
+.widget-expanded.size-5x2 .we-day-label:nth-child(5),
+.widget-expanded.size-5x2 .we-day-label:nth-child(7) {
+  visibility: hidden;
+}
+
+/* ── Decorative glow ── */
+.widget-expanded .we-glow {
+  position: absolute;
+  width: 280px; height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79,142,247,0.07) 0%, transparent 70%);
+  top: -140px; right: -80px;
+  pointer-events: none;
+}
+
+/* Background pattern */
+.widget-expanded::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 80% at 75% 25%, rgba(79,142,247,0.04) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* ================================================================
+   FULL CALENDAR SCREEN
+   Android implementation:
+     CalendarActivity.kt / CalendarFragment.kt
+     Uses RecyclerView with GridLayoutManager for the day cells
+     Adapter: CalendarDayAdapter.kt
+     ViewModel: CalendarViewModel.kt
+       → loadStreakHistory() from Room database
+       → calculateStats() 
+   ================================================================ */
+.calendar-screen {
+  background: var(--bg-base);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+/* Phone chrome */
+.phone-chrome {
+  background: var(--bg-deep);
+  border-radius: 40px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03);
+  max-width: 400px;
+  margin: 0 auto;
+}
+.phone-notch {
+  width: 120px; height: 24px;
+  background: var(--bg-deep);
+  border-radius: 0 0 16px 16px;
+  margin: 0 auto 8px;
+}
+.phone-inner {
+  border-radius: 32px;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+/* Calendar header */
+.cal-screen-header {
+  background: var(--bg-surface);
+  padding: 20px 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.cal-title {
+  font-family: var(--ff-display);
+  font-size: 36px;
+  letter-spacing: 1px;
+}
+
+.cal-habit-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-glass2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* Stats row */
+.cal-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding-bottom: 20px;
+}
+
+.cal-stat {
+  background: var(--bg-elevated);
+  border-radius: var(--r-md);
+  padding: 12px 10px;
+  text-align: center;
+  border: 1px solid var(--border);
+  transition: all 200ms ease;
+}
+.cal-stat:hover {
+  border-color: var(--border-on);
+  transform: translateY(-1px);
+}
+
+.cal-stat-value {
+  font-family: var(--ff-display);
+  font-size: 26px;
+  line-height: 1;
+  /* Android: bound to LiveData<StreakStats> in CalendarViewModel */
+}
+.cal-stat-label {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+
+/* Month navigation */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.cal-month-label {
+  font-family: var(--ff-display);
+  font-size: 22px;
+  letter-spacing: 1px;
+}
+
+.cal-nav-btn {
+  width: 36px; height: 36px;
+  border-radius: var(--r-sm);
+  background: var(--bg-glass2);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-2);
+  transition: all 200ms ease;
+}
+.cal-nav-btn:hover { border-color: var(--border-on); color: var(--text-1); }
+
+/* Calendar grid area */
+.cal-grid-area {
+  padding: 0 12px 12px;
+  overflow-y: auto;
+  max-height: 440px;
+}
+
+/* Day-of-week headers */
+.cal-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 8px 4px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-base);
+  z-index: 10;
+}
+.cal-dow {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* Day grid */
+.cal-day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  padding: 0 4px;
+}
+
+.cal-day {
+  aspect-ratio: 1;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.9);
+  cursor: pointer;
+  position: relative;
+  transition: all 200ms var(--ease-spring);
+  /* Android: RecyclerView item, color from StreakColorEngine */
+}
+.cal-day:hover { transform: scale(1.12); z-index: 2; }
+.cal-day:active { transform: scale(0.95); }
+
+/* Day states */
+.cal-day.empty {
+  background: transparent;
+  color: transparent;
+  pointer-events: none;
+}
+
+.cal-day.future {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-3);
+  cursor: default;
+}
+.cal-day.future:hover { transform: none; }
+
+.cal-day.today {
+  box-shadow: 0 0 0 2px var(--accent);
+  font-weight: 600;
+}
+
+/* Milestone ring */
+.cal-day.milestone::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 2px solid rgba(255,255,255,0.6);
+  animation: milestoneRing 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes milestoneRing {
+  0%,100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 0; transform: scale(1.15); }
+}
+
+/* Streak-start indicator */
+.cal-day.streak-start::before {
+  content: '';
+  position: absolute;
+  bottom: 2px; left: 50%; transform: translateX(-50%);
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.8);
+}
+
+/* Missed day — red with "×" tint */
+.cal-day.missed {
+  /* Color from StreakColorEngine.getDayColor(0) */
+  opacity: 0.85;
+}
+.cal-day.missed::before {
+  content: '×';
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  color: rgba(255,255,255,0.3);
+  font-weight: 300;
+}
+
+/* Restored day (future feature placeholder) */
+.cal-day.restored {
+  /* Android TODO: implement restored day logic */
+  /* visual: dashed border + different opacity */
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.3) inset;
+  opacity: 0.8;
+}
+
+/* ================================================================
+   DAY DETAIL PANEL
+   Android: BottomSheetDialogFragment → DayDetailBottomSheet.kt
+   ================================================================ */
+.day-detail-panel {
+  position: fixed;
+  bottom: -100%; left: 0; right: 0;
+  z-index: 500;
+  background: var(--bg-surface);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 32px 24px;
+  transition: bottom 400ms var(--ease-out);
+  max-width: 480px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+.day-detail-panel.open { bottom: 0; }
+
+.ddp-handle {
+  width: 36px; height: 4px;
+  border-radius: var(--r-full);
+  background: var(--text-3);
+  margin: 0 auto 24px;
+  opacity: 0.5;
+}
+
+.ddp-color-bar {
+  height: 6px;
+  border-radius: var(--r-full);
+  margin-bottom: 20px;
+  transition: background 400ms ease;
+  /* Android: color from StreakColorEngine */
+}
+
+.ddp-date {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
+.ddp-streak {
+  font-family: var(--ff-display);
+  font-size: 64px;
+  line-height: 0.9;
+  margin-bottom: 4px;
+}
+.ddp-streak-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 24px;
+}
+
+.ddp-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.ddp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--r-full);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Placeholder fields for future features */
+.ddp-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.ddp-field {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ddp-field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.ddp-field-placeholder {
+  font-size: 12px;
+  color: var(--text-3);
+  /* Android TODO: bind to DayEntry.notes, DayEntry.mood, etc. */
+}
+
+/* Backdrop */
+.panel-backdrop {
+  position: fixed; inset: 0;
+  z-index: 490;
+  background: rgba(6,11,24,0.6);
+  opacity: 0; pointer-events: none;
+  transition: opacity 300ms ease;
+}
+.panel-backdrop.open { opacity: 1; pointer-events: all; }
+
+/* ================================================================
+   CONTRIB CALENDAR (full — used in calendar screen bottom half)
+   ================================================================ */
+.contrib-section {
+  padding: 20px;
+  background: var(--bg-surface);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  margin-top: 16px;
+}
+
+.contrib-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.contrib-title {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.contrib-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.contrib-legend-cell {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+}
+.contrib-legend-label {
+  font-size: 9px;
+  color: var(--text-3);
+  margin: 0 4px;
+}
+
+/* Full contrib grid */
+.contrib-grid-full {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.contrib-week-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.contrib-cell {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 200ms var(--ease-spring);
+  /* Android: canvas draw in ContribCalendarView.kt */
+}
+.contrib-cell:hover {
+  transform: scale(1.5);
+  z-index: 2;
+  position: relative;
+}
+.contrib-cell.empty-cell { background: var(--bg-elevated); }
+.contrib-cell.future-cell { background: rgba(255,255,255,0.02); }
+
+/* Week month labels */
+.contrib-month-labels {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.contrib-month-label {
+  width: 13px;
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Color scale legend at bottom */
+.streak-scale {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+}
+.streak-scale-label {
+  font-size: 9px;
+  color: var(--text-3);
+}
+.streak-scale-cells {
+  display: flex;
+  gap: 3px;
+}
+.streak-scale-cell {
+  width: 12px; height: 12px;
+  border-radius: 2px;
+}
+
+/* ================================================================
+   MILESTONE TOAST
+   ================================================================ */
+.milestone-toast {
+  position: fixed;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-on);
+  border-radius: var(--r-xl);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), var(--shadow-glow);
+  transition: top 400ms var(--ease-spring);
+  white-space: nowrap;
+}
+.milestone-toast.show { top: 24px; }
+
+/* ================================================================
+   INTERACTIVE STREAK DEMO
+   ================================================================ */
+.demo-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg-elevated);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.demo-label {
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.demo-streak-display {
+  font-family: var(--ff-display);
+  font-size: 28px;
+  min-width: 60px;
+  text-align: center;
+}
+.demo-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--bg-glass2);
+  border: 1px solid var(--border);
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 200ms ease;
+}
+.demo-btn:hover { border-color: var(--border-on); background: var(--accent-soft); }
+.demo-break-btn {
+  padding: 8px 16px;
+  border-radius: var(--r-full);
+  background: rgba(255,79,109,0.15);
+  border: 1px solid rgba(255,79,109,0.4);
+  color: var(--accent-red);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 200ms ease;
+}
+.demo-break-btn:hover { background: rgba(255,79,109,0.25); }
+
+.demo-info {
+  font-size: 12px;
+  color: var(--text-3);
+  font-family: var(--ff-mono);
+  margin-left: auto;
+}
+
+/* ================================================================
+   ANDROID CODE COMMENT BLOCKS
+   ================================================================ */
+.android-note {
+  background: rgba(79,142,247,0.05);
+  border: 1px solid rgba(79,142,247,0.15);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+.android-note strong { color: var(--accent); }
+
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
+@media (max-width: 680px) {
+  .widget-stage { justify-content: center; }
+  .widget-expanded.size-5x4 { width: 100%; max-width: 420px; }
+  .cal-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ================================================================
+   ANIMATIONS
+   ================================================================ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-up {
+  animation: fadeUp 0.5s var(--ease-out) both;
+}
+.fade-up:nth-child(1) { animation-delay: 0.05s; }
+.fade-up:nth-child(2) { animation-delay: 0.10s; }
+.fade-up:nth-child(3) { animation-delay: 0.15s; }
+.fade-up:nth-child(4) { animation-delay: 0.20s; }
+
+@keyframes cellReveal {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+</style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="bg-canvas"></div>
+
+<!-- Theme toggle -->
+<div class="theme-bar">
+  <button class="theme-toggle" onclick="toggleTheme()">☀ Light / ◑ Dark</button>
+</div>
+
+<!-- Milestone toast -->
+<div class="milestone-toast" id="milestoneToast">
+  <span id="milestoneToastEmoji">🔥</span>
+  <span id="milestoneToastText">7-Day Milestone!</span>
+</div>
+
+<!-- Day detail panel backdrop -->
+<div class="panel-backdrop" id="panelBackdrop" onclick="closeDayDetail()"></div>
+
+<!-- Day detail panel -->
+<div class="day-detail-panel" id="dayDetailPanel">
+  <div class="ddp-handle"></div>
+  <div class="ddp-color-bar" id="ddpColorBar"></div>
+  <div class="ddp-date" id="ddpDate">June 7, 2025</div>
+  <div class="ddp-streak" id="ddpStreak">12</div>
+  <div class="ddp-streak-label">Day Streak</div>
+  <div class="ddp-status-row">
+    <div class="ddp-status-badge" id="ddpStatusBadge">✅ Completed</div>
+  </div>
+  <div class="ddp-fields">
+    <!--
+      Android TODO: DayDetailBottomSheet.kt
+      Bind each field to DayEntry fields in Room DB
+    -->
+    <div class="ddp-field">
+      <span class="ddp-field-label">📝 Notes</span>
+      <span class="ddp-field-placeholder">Tap to add note…</span>
+    </div>
+    <div class="ddp-field">
+      <span class="ddp-field-label">😊 Mood</span>
+      <span class="ddp-field-placeholder">How did you feel?</span>
+    </div>
+    <div class="ddp-field">
+      <span class="ddp-field-label">📊 Stats</span>
+      <span class="ddp-field-placeholder">Coming soon</span>
+    </div>
+    <!--
+      Android TODO: Future restored-day logic
+      If DayEntry.isRestored == true, show "Restored" badge
+      StreakBreakManager.restoreDay(date) → updates DB
+    -->
+  </div>
+  <button style="width:100%;padding:16px;background:var(--accent-soft);border:1px solid var(--border-on);border-radius:var(--r-md);color:var(--accent);font-size:14px;font-weight:500;" onclick="closeDayDetail()">
+    Close
+  </button>
+</div>
+
+<!-- ================================================================
+     APP CONTENT
+     ================================================================ -->
+<div id="app">
+
+  <!-- PAGE TITLE -->
+  <div style="margin-bottom:48px;animation:fadeUp 0.5s var(--ease-out);">
+    <div style="font-family:var(--ff-display);font-size:52px;letter-spacing:2px;line-height:1;">DAYONE</div>
+    <div style="font-size:13px;color:var(--text-3);letter-spacing:0.2em;text-transform:uppercase;margin-top:6px;">Widget & Calendar Prototype</div>
+  </div>
+
+  <!-- ============================================================
+       INTERACTIVE DEMO CONTROLS
+       ============================================================ -->
+  <div class="demo-controls fade-up" style="margin-bottom:40px;">
+    <span class="demo-label">Streak</span>
+    <button class="demo-btn" onclick="adjustStreak(-1)">−</button>
+    <div class="demo-streak-display" id="demoStreakDisplay">12</div>
+    <button class="demo-btn" onclick="adjustStreak(1)">+</button>
+    <button class="demo-break-btn" onclick="breakStreak()">💔 Break Streak</button>
+    <!--
+      Android: streak value comes from StreakRepository.kt
+      fun getCurrentStreak(): Flow<Int>
+      streakBreaks comes from StreakRepository.getTotalBreaks(): Flow<Int>
+    -->
+    <div class="demo-info" id="demoInfo">breaks: 0 · threshold: 13</div>
+  </div>
+
+  <!-- ============================================================
+       WIDGET 1 — COMPACT
+       ============================================================ -->
+  <div class="section-head fade-up">
+    <div class="section-title">Compact Widget</div>
+    <div class="section-chip">W1×L1 · W2×L2</div>
+  </div>
+
+  <div class="size-toggle fade-up">
+    <button class="size-btn active" id="compactSizeBtn1" onclick="setCompactSize('small')">1×1 Small</button>
+    <button class="size-btn" id="compactSizeBtn2" onclick="setCompactSize('medium')">2×2 Medium</button>
+  </div>
+
+  <!--
+    Android: CompactWidgetProvider.kt
+    Registered in AndroidManifest.xml as AppWidgetProvider
+    res/xml/compact_widget_info.xml → minWidth/minHeight for 1x1 vs 2x2
+    onUpdate() → loads streak, calls StreakColorEngine, updates RemoteViews
+  -->
+  <div class="widget-stage fade-up">
+    <!-- Widget 1 — main -->
+    <div class="widget widget-compact size-small" id="compactWidget" onclick="handleWidgetTap('compact')">
+      <div class="wc-bg" id="compactBg"></div>
+      <div class="wc-gloss"></div>
+      <div class="wc-noise"></div>
+      <div class="wc-ring"></div>
+      <div class="wc-brand">DayOne</div>
+      <div class="wc-number" id="compactNumber">12</div>
+      <div class="wc-label">Days</div>
+      <div class="wc-icon" id="compactIcon">🔥</div>
+    </div>
+
+    <!-- Second widget shown side by side for comparison -->
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+      <div style="font-size:10px;color:var(--text-3);letter-spacing:0.15em;text-transform:uppercase;">Streak break → color shift</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;" id="colorSwatchRow">
+        <!-- Dynamically generated color swatches -->
+      </div>
+    </div>
+  </div>
+
+  <div class="android-note" style="margin-top:24px;">
+    <strong>// Android: CompactWidgetProvider.kt</strong><br>
+    // 1. Load streak: val streak = streakRepo.getCurrentStreak()<br>
+    // 2. Get color: val bg = StreakColorEngine.getStreakGradient(streak, streakBreaks)<br>
+    // 3. Apply: views.setInt(R.id.widgetRoot, "setBackgroundColor", bg)<br>
+    // 4. Set text: views.setTextViewText(R.id.streakCount, streak.toString())<br>
+    // 5. Tap action: val intent = Intent(ctx, MainActivity::class.java)<br>
+    //    views.setOnClickPendingIntent(R.id.widgetRoot, pendingIntent)<br>
+    // 6. Schedule refresh: WorkManager periodic task every 15 min
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ============================================================
+       WIDGET 2 — EXPANDED
+       ============================================================ -->
+  <div class="section-head fade-up">
+    <div class="section-title">Expanded Widget</div>
+    <div class="section-chip">W5×L2 · W5×L3</div>
+  </div>
+
+  <div class="size-toggle fade-up">
+    <button class="size-btn active" id="expandedSizeBtn1" onclick="setExpandedSize('5x2')">5×2 Short</button>
+    <button class="size-btn" id="expandedSizeBtn2" onclick="setExpandedSize('5x3')">5×3 Medium</button>
+  </div>
+
+  <!--
+    Android: ExpandedWidgetProvider.kt
+    res/xml/expanded_widget_info.xml → minWidth for 5x2 and 5x3
+    res/xml/expanded_widget_info_5x2.xml → minWidth="250dp" minHeight="110dp"
+    res/xml/expanded_widget_info_5x3.xml → minWidth="250dp" minHeight="175dp"
+    Uses custom RemoteViews or AppWidgetProvider with canvas-drawn grid
+    ContribCalendarBuilder.kt → buildRemoteViews(weeks: List<List<DayEntry>>)
+  -->
+  <div class="widget-stage fade-up">
+    <div class="widget widget-expanded size-5x2" id="expandedWidget" onclick="handleWidgetTap('expanded')">
+      <div class="we-glow"></div>
+      <div class="we-inner">
+        <!-- Left panel -->
+        <div class="we-left">
+          <div class="we-app-name">DayOne</div>
+          <div>
+            <div class="we-streak-count" id="expandedStreakCount">12</div>
+            <div class="we-streak-label">Days Strong</div>
+          </div>
+          <div>
+            <div class="we-date" id="expandedDate">Sun · Jun 7</div>
+            <div style="height:8px;"></div>
+            <div class="we-status">
+              <div class="we-status-dot" id="expandedDot"></div>
+              <span id="expandedStatus">On Track</span>
+            </div>
+          </div>
+          <div class="we-habit-name" id="expandedHabitName">No Sugar</div>
+        </div>
+        <!-- Right panel — mini contrib calendar -->
+        <div class="we-right">
+          <div class="we-cal-header">
+            <span class="we-cal-title">Activity</span>
+          </div>
+          <div style="display:flex;flex:1;overflow:hidden;">
+            <!-- Day labels -->
+            <div class="we-day-labels" id="weDayLabels">
+              <div class="we-day-label">S</div>
+              <div class="we-day-label">M</div>
+              <div class="we-day-label">T</div>
+              <div class="we-day-label">W</div>
+              <div class="we-day-label">T</div>
+              <div class="we-day-label">F</div>
+              <div class="we-day-label">S</div>
+            </div>
+            <!-- Grid -->
+            <div class="widget-contrib-grid" id="widgetContribGrid">
+              <!-- Generated by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="android-note" style="margin-top:24px;">
+    <strong>// Android: ExpandedWidgetProvider.kt</strong><br>
+    // Supports two sizes via AppWidgetProviderInfo.targetCellWidth/Height:<br>
+    //   5×2 → targetCellWidth=5, targetCellHeight=2 (minWidth=250dp, minHeight=110dp)<br>
+    //   5×3 → targetCellWidth=5, targetCellHeight=3 (minWidth=250dp, minHeight=175dp)<br>
+    // 1. Load history: val history = streakRepo.getLast10Weeks()<br>
+    // 2. Build grid: ContribCalendarBuilder.buildWidgetGrid(history, rows = if (is5x2) 2 else 3)<br>
+    //    → iterates weeks, calls StreakColorEngine.getDayColor(day)<br>
+    //    → draws onto Bitmap via Canvas, sets as ImageView background<br>
+    // 3. Left panel: set streak, date, status via RemoteViews text bindings<br>
+    //    → For 5×2: hide date row (GONE) to save vertical space<br>
+    // 4. Tap: PendingIntent → CalendarActivity<br>
+    // 5. Refresh: AlarmManager or WorkManager scheduled every hour
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ============================================================
+       FULL CALENDAR SCREEN
+       ============================================================ -->
+  <div class="section-head fade-up">
+    <div class="section-title">Calendar Screen</div>
+    <div class="section-chip">Android · CalendarActivity</div>
+  </div>
+
+  <!--
+    Android: CalendarFragment.kt (or CalendarActivity.kt)
+    ViewModel: CalendarViewModel.kt
+      → val streakHistory: LiveData<List<DayEntry>> = repository.getAll()
+      → val stats: LiveData<StreakStats> = Transformations.map(streakHistory) { computeStats(it) }
+    Layout: fragment_calendar.xml
+    Uses RecyclerView with CalendarDayAdapter.kt for day cells
+  -->
+  <div style="max-width:420px;margin:0 auto;" class="fade-up">
+
+    <!-- Stats header -->
+    <div style="background:var(--bg-surface);border-radius:var(--r-xl) var(--r-xl) 0 0;padding:24px 20px 0;border:1px solid var(--border);border-bottom:none;">
+
+      <div class="cal-header-top">
+        <div style="font-family:var(--ff-display);font-size:36px;letter-spacing:1px;">History</div>
+        <div class="cal-habit-badge">
+          <span id="calHabitEmoji">🔥</span>
+          <span id="calHabitName">No Sugar</span>
+        </div>
+      </div>
+
+      <!-- Stats cards -->
+      <div class="cal-stats">
+        <div class="cal-stat fade-up">
+          <div class="cal-stat-value" id="statCurrentStreak" style="color:var(--accent-green)">12</div>
+          <div class="cal-stat-label">Current</div>
+        </div>
+        <div class="cal-stat fade-up">
+          <div class="cal-stat-value" id="statLongest" style="color:var(--accent)">21</div>
+          <div class="cal-stat-label">Longest</div>
+        </div>
+        <div class="cal-stat fade-up">
+          <div class="cal-stat-value" id="statTotal" style="color:var(--accent-cyan)">87</div>
+          <div class="cal-stat-label">Total Days</div>
+        </div>
+        <div class="cal-stat fade-up">
+          <div class="cal-stat-value" id="statRate" style="color:var(--accent-warn)">79%</div>
+          <div class="cal-stat-label">Success</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Month calendar -->
+    <div style="background:var(--bg-base);border:1px solid var(--border);border-top:none;border-bottom:none;">
+
+      <!-- Month nav -->
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="prevCalMonth()" aria-label="Previous">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="cal-month-label" id="calMonthLabel">June 2025</div>
+        <button class="cal-nav-btn" onclick="nextCalMonth()" aria-label="Next">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+      <!-- Day grid -->
+      <div class="cal-grid-area">
+        <div class="cal-dow-row">
+          <div class="cal-dow">Su</div><div class="cal-dow">Mo</div>
+          <div class="cal-dow">Tu</div><div class="cal-dow">We</div>
+          <div class="cal-dow">Th</div><div class="cal-dow">Fr</div>
+          <div class="cal-dow">Sa</div>
+        </div>
+        <div class="cal-day-grid" id="calDayGrid">
+          <!-- Generated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Contribution graph section -->
+    <div style="background:var(--bg-base);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r-xl) var(--r-xl);padding:20px;">
+
+      <div class="contrib-section" style="margin-top:0;">
+        <div class="contrib-header">
+          <span class="contrib-title">52-Week Activity</span>
+          <div class="contrib-legend">
+            <span class="contrib-legend-label">Less</span>
+            <div class="contrib-legend-cell" style="background:var(--bg-elevated)"></div>
+            <div class="contrib-legend-cell" style="background:var(--streak-3)"></div>
+            <div class="contrib-legend-cell" style="background:var(--streak-7)"></div>
+            <div class="contrib-legend-cell" style="background:var(--streak-11)"></div>
+            <div class="contrib-legend-cell" style="background:var(--streak-13)"></div>
+            <span class="contrib-legend-label">More</span>
+          </div>
+        </div>
+
+        <!-- Month labels row -->
+        <div class="contrib-month-labels" id="contribMonthLabels"></div>
+
+        <!-- Full 52-week grid -->
+        <div style="display:flex;gap:0;">
+          <div style="display:flex;flex-direction:column;gap:4px;margin-right:6px;padding-top:2px;">
+            <div style="font-size:8px;color:var(--text-3);height:13px;line-height:13px;">S</div>
+            <div style="font-size:8px;color:var(--text-3);height:13px;line-height:13px;">M</div>
+            <div style="font-size:8px;color:var(--text-3);height:13px;line-height:13px;">T</div>
+            <div style="font-size:8px;color:var(--text-3);height:13px;line-height:13px;">W</div>
+            <div style="font-size:8px;color:var(--text-3);height:13px;line-height:13px;">T</div>
+            <div style="font-size:8px;color:var(--text-3);height:13px;line-height:13px;">F</div>
+            <div style="font-size:8px;color:var(--text-3);height:13px;line-height:13px;">S</div>
+          </div>
+          <div class="contrib-grid-full" id="contribGridFull"></div>
+        </div>
+
+        <!-- Color scale -->
+        <div class="streak-scale" style="margin-top:14px;">
+          <span class="streak-scale-label">0d</span>
+          <div class="streak-scale-cells" id="streakScaleCells"></div>
+          <span class="streak-scale-label" id="streakScaleMax">13+d</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /calendar screen -->
+
+  <div class="android-note" style="margin-top:24px;max-width:420px;margin-left:auto;margin-right:auto;">
+    <strong>// Android: CalendarViewModel.kt</strong><br>
+    // loadStreakHistory() → Room DAO: DayEntryDao.getAllEntries()<br>
+    // computeStats(entries) → StreakCalculator.compute(entries)<br>
+    // generateCalendarCells(month) → maps DayEntry list to CalendarCell list<br>
+    // Each CalendarCell has: date, streakValue, state (COMPLETED/MISSED/FUTURE/RESTORED)<br>
+    // CalendarDayAdapter binds color via StreakColorEngine.getDayColor(cell.streakValue)<br>
+    // <br>
+    // Haptic feedback: HapticFeedbackConstants.CLOCK_TICK on day tap<br>
+    // Android: view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+  </div>
+
+</div><!-- /app -->
+
+
+<script>
+/* ================================================================
+   JAVASCRIPT — STREAK ENGINE + MOCK DATA + RENDERING
+
+   In Android, this logic lives in:
+     StreakColorEngine.kt       — color calculations
+     StreakRepository.kt        — data access layer (Room DB)
+     StreakCalculator.kt        — streak math
+     ContribCalendarBuilder.kt  — calendar grid generation
+     CalendarViewModel.kt       — ViewModel bridging data & UI
+   ================================================================ */
+
+/* ----------------------------------------------------------------
+   MOCK DATA
+   Android: loaded from Room database via StreakRepository
+   ---------------------------------------------------------------- */
+const MOCK_HABIT = {
+  id: 'habit_001',
+  name: 'No Sugar',
+  emoji: '🔥',
+  color: '#4f8ef7',
+  startDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000) // 12 days ago
+};
+
+// Simulate 365 days of history
+// Android: DayEntryDao.getAllEntries() returns List<DayEntry>
+const TODAY = new Date();
+
+function generateMockHistory() {
+  const entries = {};
+  const start = new Date(TODAY);
+  start.setFullYear(start.getFullYear() - 1);
+
+  let streakCounter = 0;
+  let inStreak = false;
+
+  for (let d = new Date(start); d <= TODAY; d.setDate(d.getDate() + 1)) {
+    const key = dateKey(d);
+    const rand = Math.random();
+
+    if (d > TODAY) {
+      entries[key] = { state: 'future', streak: 0 };
+      continue;
+    }
+
+    if (!inStreak) {
+      if (rand > 0.3) { // 70% chance to start streak
+        inStreak = true;
+        streakCounter = 1;
+        entries[key] = { state: 'completed', streak: streakCounter };
+      } else {
+        entries[key] = { state: 'missed', streak: 0 };
+      }
+    } else {
+      if (rand > 0.08) { // 92% chance to continue
+        streakCounter++;
+        entries[key] = { state: 'completed', streak: streakCounter };
+      } else {
+        entries[key] = { state: 'missed', streak: 0 };
+        inStreak = false;
+        streakCounter = 0;
+      }
+    }
+  }
+
+  // Force last 12 days to be a clean streak
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(TODAY);
+    d.setDate(d.getDate() - i);
+    entries[dateKey(d)] = { state: 'completed', streak: 13 - i };
+  }
+
+  return entries;
+}
+
+const HISTORY = generateMockHistory();
+
+/* ----------------------------------------------------------------
+   STATE
+   ---------------------------------------------------------------- */
+let currentStreak  = 12;
+let streakBreaks   = 0;
+let calYear        = TODAY.getFullYear();
+let calMonth       = TODAY.getMonth();
+
+/* ----------------------------------------------------------------
+   STREAK COLOR ENGINE — Recovery Ladder System
+   Android: StreakColorEngine.kt
+   fun getStreakColor(days: Int, streakBreaks: Int): Int
+
+   Design philosophy:
+     A streak break doesn't reset to zero — it adds a recovery step.
+     The user must "climb back" through intermediate warm colors before
+     reaching green. More breaks = more distance to climb.
+
+     GREEN is always capped at exactly 3 levels.
+     The recovery path GROWS with each break (capped at MAX_RECOVERY_STEPS).
+
+   Android implementation location:
+     app/src/main/java/com/dayone/engine/StreakColorEngine.kt
+   ---------------------------------------------------------------- */
+const MILESTONE_DAYS = [1, 3, 7, 14, 21, 30, 60, 90, 100, 180, 365];
+
+// ── Fixed green levels (always exactly 3) ──────────────────────
+// Android: val GREENS = listOf(GREEN_1, GREEN_2, GREEN_3)
+const GREEN_1 = '#7cdb8a';   // light green  — first green milestone
+const GREEN_2 = '#2dd87b';   // medium green — building momentum
+const GREEN_3 = '#00c853';   // deep green   — fully recovered / thriving
+
+// ── Base recovery palette (warm → cool transition) ──────────────
+// Android: val BASE_RECOVERY = listOf(RED, ORANGE, YELLOW)
+const RECOVERY_BASE = [
+  '#ff1744',   // RED    — just broke
+  '#ff6b35',   // ORANGE — getting back on track
+  '#ffc24b',   // YELLOW — almost there
+];
+
+// Cap total recovery steps to avoid demotivating "stuck in orange" effect
+// Android: const val MAX_RECOVERY_STEPS = 6
+const MAX_RECOVERY_STEPS = 6;
+
+// Each green level unlocks after this many consecutive recovery days
+// Full ladder = RECOVERY_STEPS + 3 green levels
+// Android: const val DAYS_PER_GREEN = 3
+const DAYS_PER_GREEN = 3;
+
+/*
+ * buildRecoveryPath(breakCount): List<Color>
+ *
+ * Constructs the full color ladder for the current break count.
+ * The ladder is: [extra warm steps...] + [base recovery] + [3 greens]
+ *
+ * Each break adds one more step in the warm zone (interpolated between
+ * deep orange and red), making recovery feel longer but not impossible.
+ *
+ * Android: fun buildRecoveryPath(breakCount: Int): List<Color>
+ */
+function buildRecoveryPath(breaks) {
+  const clampedBreaks = Math.min(breaks, MAX_RECOVERY_STEPS - RECOVERY_BASE.length);
+  const extraCount = Math.max(0, clampedBreaks);
+
+  // Extra steps: interpolated between deep-orange and dark-red
+  // More breaks → more steps deep in the warm zone
+  const extraSteps = [];
+  for (let i = 0; i < extraCount; i++) {
+    // t goes from near-red (0) toward orange (1) as i increases
+    const t = extraCount > 1 ? i / (extraCount - 1) : 0;
+    extraSteps.push(lerpColor('#cc2200', '#e84800', t));
+  }
+
+  // Full ladder: extras → base recovery → 3 greens
+  return [...extraSteps, ...RECOVERY_BASE, GREEN_1, GREEN_2, GREEN_3];
+}
+
+/*
+ * getLadderLength(breakCount): Int
+ * Total number of days needed to reach full green.
+ * Android: fun getLadderLength(breakCount: Int): Int
+ */
+function getLadderLength(breaks) {
+  return buildRecoveryPath(breaks).length;
+}
+
+/*
+ * getGreenThreshold(): Int
+ * Day at which the FIRST green (GREEN_1) is reached.
+ * This replaces the old greenThreshold concept.
+ * Android: fun getGreenThreshold(breakCount: Int): Int
+ */
+function getGreenThreshold() {
+  const path = buildRecoveryPath(streakBreaks);
+  // Green starts at index (path.length - 3), so after that many recovery days
+  return path.length - 3 + 1; // 1-indexed: "you reach green on day N"
+}
+
+/*
+ * getStreakColor(days, overrideBreaks): Color
+ *
+ * Maps a streak day count to its color using the dynamic recovery ladder.
+ *
+ * days = 0        → always red (just broke)
+ * days 1..N-3     → recovery colors (warm, extending with breaks)
+ * days N-2        → GREEN_1
+ * days N-1        → GREEN_2
+ * days N+         → GREEN_3 (stays deep green, slowly intensifies)
+ *
+ * Android: fun getStreakColor(days: Int, streakBreaks: Int): Int
+ */
+function getStreakColor(days, overrideBreaks = null) {
+  const breaks = overrideBreaks !== null ? overrideBreaks : streakBreaks;
+  const path = buildRecoveryPath(breaks);
+  const totalSteps = path.length; // recovery steps + 3 greens
+
+  // Day 0 = broken streak → always bright red
+  if (days <= 0) return path[0];
+
+  // Map day → ladder index (1-indexed days → 0-indexed path)
+  const idx = days - 1;
+
+  // Within the ladder → return exact color
+  if (idx < totalSteps) return path[idx];
+
+  // Beyond the ladder → we're in GREEN_3 territory, gently intensify
+  // Android: interpolate from GREEN_3 toward a richer deep green
+  const extraDays = days - totalSteps;
+  const t = Math.min(extraDays / 30, 1);
+  return lerpColor(GREEN_3, '#1b7a3e', t);
+}
+
+function getStreakGradient(days) {
+  // Android: StreakColorEngine.getStreakGradient(days, streakBreaks)
+  // Returns a GradientDrawable for widget background
+  const base  = getStreakColor(days);
+  const dark  = darkenColor(base, 0.25);
+  return `linear-gradient(145deg, ${lightenColor(base, 0.15)} 0%, ${base} 50%, ${dark} 100%)`;
+}
+
+/* ----------------------------------------------------------------
+   COLOR UTILITIES
+   Android: ColorUtils.kt
+   ---------------------------------------------------------------- */
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return [r,g,b];
+}
+
+function rgbToHex(r,g,b) {
+  return '#' + [r,g,b].map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+}
+
+function lerpColor(a, b, t) {
+  const [r1,g1,b1] = hexToRgb(a);
+  const [r2,g2,b2] = hexToRgb(b);
+  return rgbToHex(r1+(r2-r1)*t, g1+(g2-g1)*t, b1+(b2-b1)*t);
+}
+
+function darkenColor(hex, amount) {
+  const [r,g,b] = hexToRgb(hex);
+  return rgbToHex(r*(1-amount), g*(1-amount), b*(1-amount));
+}
+
+function lightenColor(hex, amount) {
+  const [r,g,b] = hexToRgb(hex);
+  return rgbToHex(r+(255-r)*amount, g+(255-g)*amount, b+(255-b)*amount);
+}
+
+/* ----------------------------------------------------------------
+   STREAK ICON
+   ---------------------------------------------------------------- */
+function getStreakIcon(days) {
+  if (days <= 0)  return '💀';
+  if (days <= 3)  return '😤';
+  if (days <= 7)  return '🔥';
+  if (days <= 14) return '⚡';
+  if (days <= 30) return '💪';
+  if (days <= 90) return '🚀';
+  return '👑';
+}
+
+/* ----------------------------------------------------------------
+   DATE UTILITIES
+   ---------------------------------------------------------------- */
+function dateKey(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+}
+
+function formatDateShort(d) {
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return days[d.getDay()] + ' · ' + months[d.getMonth()] + ' ' + d.getDate();
+}
+
+function formatDateLong(d) {
+  const months = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+
+/* ----------------------------------------------------------------
+   WIDGET 1 — COMPACT: UPDATE
+   Android: CompactWidgetProvider.onUpdate()
+   ---------------------------------------------------------------- */
+function updateCompactWidget() {
+  const color     = getStreakColor(currentStreak);
+  const gradient  = getStreakGradient(currentStreak);
+  const icon      = getStreakIcon(currentStreak);
+  const isMilestone = MILESTONE_DAYS.includes(currentStreak);
+
+  document.getElementById('compactBg').style.background = gradient;
+  document.getElementById('compactNumber').textContent   = currentStreak;
+  document.getElementById('compactIcon').textContent     = icon;
+
+  const widget = document.getElementById('compactWidget');
+  widget.classList.toggle('milestone', isMilestone);
+}
+
+/* ----------------------------------------------------------------
+   WIDGET 2 — EXPANDED: UPDATE
+   Android: ExpandedWidgetProvider.onUpdate()
+   ---------------------------------------------------------------- */
+function updateExpandedWidget() {
+  const color = getStreakColor(currentStreak);
+  const icon  = getStreakIcon(currentStreak);
+
+  document.getElementById('expandedStreakCount').textContent = currentStreak;
+  document.getElementById('expandedStreakCount').style.color  = color;
+  document.getElementById('expandedDate').textContent         = formatDateShort(TODAY);
+  document.getElementById('expandedDot').style.background     = color;
+
+  const statusText = currentStreak >= 7 ? 'On Fire 🔥' :
+                     currentStreak >= 3 ? 'On Track'    :
+                     currentStreak >= 1 ? 'Getting Started' : 'Needs Attention';
+  document.getElementById('expandedStatus').textContent = statusText;
+
+  buildWidgetContribGrid();
+}
+
+/* ----------------------------------------------------------------
+   WIDGET CONTRIB GRID (mini — 8 weeks)
+   Android: ContribCalendarBuilder.buildWidgetGrid()
+   ---------------------------------------------------------------- */
+function buildWidgetContribGrid() {
+  const container = document.getElementById('widgetContribGrid');
+  container.innerHTML = '';
+
+  // 5×2 is wider than the old 4×4 — show more weeks to fill the width
+  // Android: ContribCalendarBuilder adapts numWeeks based on widget size
+  const numWeeks = 13;
+  const today    = new Date(TODAY);
+
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - numWeeks * 7 + 1);
+
+  for (let w = 0; w < numWeeks; w++) {
+    const weekEl = document.createElement('div');
+    weekEl.className = 'widget-contrib-week';
+
+    for (let d = 0; d < 7; d++) {
+      const cellDate = new Date(startDate);
+      cellDate.setDate(startDate.getDate() + w * 7 + d);
+      const key   = dateKey(cellDate);
+      const entry = HISTORY[key];
+
+      const cell = document.createElement('div');
+      cell.className = 'widget-contrib-cell';
+
+      if (!entry || cellDate > today) {
+        cell.classList.add(cellDate > today ? 'future' : 'empty');
+      } else if (entry.state === 'completed') {
+        cell.style.background = getStreakColor(entry.streak);
+        cell.style.opacity    = '0.9';
+      } else {
+        cell.style.background = 'rgba(255,79,109,0.45)';
+      }
+
+      weekEl.appendChild(cell);
+    }
+    container.appendChild(weekEl);
+  }
+}
+
+/* ----------------------------------------------------------------
+   CALENDAR SCREEN: MONTH VIEW
+   Android: CalendarDayAdapter.kt (RecyclerView Adapter)
+   ---------------------------------------------------------------- */
+function renderMonthCalendar() {
+  document.getElementById('calMonthLabel').textContent =
+    MONTH_NAMES[calMonth] + ' ' + calYear;
+
+  const grid = document.getElementById('calDayGrid');
+  grid.innerHTML = '';
+
+  const firstDay    = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  // Empty prefix cells
+  for (let i = 0; i < firstDay; i++) {
+    const el = document.createElement('div');
+    el.className = 'cal-day empty';
+    grid.appendChild(el);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date  = new Date(calYear, calMonth, d);
+    const key   = dateKey(date);
+    const entry = HISTORY[key];
+    const isToday = date.toDateString() === TODAY.toDateString();
+
+    const el = document.createElement('div');
+    el.textContent = d;
+
+    if (date > TODAY) {
+      el.className = 'cal-day future';
+      el.style.color = 'var(--text-3)';
+    } else if (!entry || entry.state === 'missed') {
+      el.className = 'cal-day missed';
+      el.style.background = getStreakColor(0) + '55';
+      el.style.color = 'rgba(255,255,255,0.7)';
+      el.textContent = d;
+    } else {
+      el.className = 'cal-day';
+      const col = getStreakColor(entry.streak);
+      el.style.background = col;
+      el.style.boxShadow  = `0 2px 8px ${col}66`;
+
+      // Milestone marker
+      if (MILESTONE_DAYS.includes(entry.streak)) {
+        el.classList.add('milestone');
+      }
+    }
+
+    if (isToday) el.classList.add('today');
+
+    // Tap handler
+    // Android: RecyclerView item click → CalendarViewModel.onDaySelected(entry)
+    el.addEventListener('click', () => {
+      if (date <= TODAY) openDayDetail(date, entry);
+    });
+
+    // Animate in
+    el.style.animation = `cellReveal 300ms var(--ease-spring) ${(d * 15)}ms both`;
+
+    grid.appendChild(el);
+  }
+}
+
+/* ----------------------------------------------------------------
+   CALENDAR NAVIGATION
+   ---------------------------------------------------------------- */
+function prevCalMonth() {
+  if (calMonth === 0) { calMonth = 11; calYear--; } else calMonth--;
+  renderMonthCalendar();
+}
+function nextCalMonth() {
+  if (calMonth === 11) { calMonth = 0; calYear++; } else calMonth++;
+  renderMonthCalendar();
+}
+
+/* ----------------------------------------------------------------
+   FULL CONTRIB GRID (52 weeks)
+   Android: ContribCalendarView.kt (custom View)
+   onDraw() → iterates weeks, calls StreakColorEngine.getDayColor()
+   ---------------------------------------------------------------- */
+function buildFullContribGrid() {
+  const container = document.getElementById('contribGridFull');
+  container.innerHTML = '';
+
+  const monthLabels = document.getElementById('contribMonthLabels');
+  monthLabels.innerHTML = '';
+
+  const numWeeks  = 52;
+  const startDate = new Date(TODAY);
+  startDate.setDate(startDate.getDate() - numWeeks * 7 + 1);
+  // Snap to Sunday
+  const dow = startDate.getDay();
+  startDate.setDate(startDate.getDate() - dow);
+
+  let lastMonth = -1;
+
+  for (let w = 0; w < numWeeks; w++) {
+    const weekEl = document.createElement('div');
+    weekEl.className = 'contrib-week-col';
+
+    // Month label
+    const weekStart = new Date(startDate);
+    weekStart.setDate(startDate.getDate() + w * 7);
+    const monthLabel = document.createElement('div');
+    monthLabel.className = 'contrib-month-label';
+    if (weekStart.getMonth() !== lastMonth && weekStart.getDate() <= 7) {
+      monthLabel.textContent = MONTH_NAMES[weekStart.getMonth()].slice(0,3);
+      lastMonth = weekStart.getMonth();
+    }
+    monthLabels.appendChild(monthLabel);
+
+    for (let d = 0; d < 7; d++) {
+      const cellDate = new Date(startDate);
+      cellDate.setDate(startDate.getDate() + w * 7 + d);
+      const key   = dateKey(cellDate);
+      const entry = HISTORY[key];
+
+      const cell = document.createElement('div');
+      cell.className = 'contrib-cell';
+
+      if (cellDate > TODAY) {
+        cell.classList.add('future-cell');
+      } else if (!entry || entry.state === 'missed') {
+        if (entry && entry.state === 'missed') {
+          cell.style.background = getStreakColor(0) + '66';
+        } else {
+          cell.classList.add('empty-cell');
+        }
+      } else {
+        const col = getStreakColor(entry.streak);
+        cell.style.background = col;
+        cell.title = `${key} — Day ${entry.streak}`;
+      }
+
+      const isToday = cellDate.toDateString() === TODAY.toDateString();
+      if (isToday) {
+        cell.style.outline    = '2px solid var(--accent)';
+        cell.style.outlineOffset = '1px';
+      }
+
+      // Tap → day detail
+      cell.addEventListener('click', () => {
+        if (cellDate <= TODAY && entry) openDayDetail(cellDate, entry);
+      });
+
+      weekEl.appendChild(cell);
+    }
+    container.appendChild(weekEl);
+  }
+
+  buildStreakScale();
+}
+
+/* ----------------------------------------------------------------
+   STREAK COLOR SCALE (legend)
+   ---------------------------------------------------------------- */
+function buildStreakScale() {
+  /*
+   * Shows a condensed view of the current recovery ladder as a legend.
+   * Samples are taken across the recovery path + beyond-green days.
+   * Android: StreakColorEngine.buildRecoveryPath(streakBreaks)
+   */
+  const container = document.getElementById('streakScaleCells');
+  container.innerHTML = '';
+  const path = buildRecoveryPath(streakBreaks);
+  const ladderLen = path.length;
+
+  // Sample: day 0 + every step in the ladder + a few post-green days
+  const sampleDays = [0];
+  path.forEach((_, i) => sampleDays.push(i + 1));
+  sampleDays.push(ladderLen + 10); // well into stable green
+
+  sampleDays.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'streak-scale-cell';
+    el.style.background = getStreakColor(d);
+    el.title = `${d} days`;
+    container.appendChild(el);
+  });
+
+  const greenStartDay = ladderLen - 2; // GREEN_1 day
+  document.getElementById('streakScaleMax').textContent = `${greenStartDay}+d`;
+}
+
+/* ----------------------------------------------------------------
+   COLOR SWATCHES (compact widget demo)
+   ---------------------------------------------------------------- */
+function buildColorSwatches() {
+  /*
+   * Shows the full recovery ladder for the current break count.
+   * Each swatch = one step in the path (warm recovery steps + 3 greens).
+   * Clicking a swatch jumps currentStreak to that day index.
+   * Android: StreakColorEngine.buildRecoveryPath(streakBreaks)
+   */
+  const row = document.getElementById('colorSwatchRow');
+  row.innerHTML = '';
+
+  const path = buildRecoveryPath(streakBreaks);
+  const ladderLen = path.length;
+  const warmCount = ladderLen - 3;
+
+  // Header label
+  const headerWrap = document.createElement('div');
+  headerWrap.style.cssText = 'width:100%;display:flex;align-items:center;gap:8px;margin-bottom:4px;';
+  headerWrap.innerHTML = `
+    <span style="font-size:10px;color:var(--text-3);font-family:var(--ff-mono);white-space:nowrap;">
+      Recovery ladder · ${warmCount} warm + 3 green
+    </span>
+  `;
+  row.parentElement.insertBefore(headerWrap, row);
+
+  // Day 0 swatch (broken / reset)
+  const d0wrap = document.createElement('div');
+  d0wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+  const d0swatch = document.createElement('div');
+  d0swatch.style.cssText = `width:28px;height:28px;border-radius:8px;background:${path[0]};cursor:pointer;transition:all 200ms;border:2px solid rgba(255,255,255,0.2);`;
+  d0swatch.title = 'Day 0 — Broken';
+  d0swatch.onclick = () => { currentStreak = 0; updateAll(); };
+  d0swatch.onmouseenter = () => d0swatch.style.transform = 'scale(1.2)';
+  d0swatch.onmouseleave = () => d0swatch.style.transform = 'scale(1)';
+  const d0label = document.createElement('div');
+  d0label.textContent = '0';
+  d0label.style.cssText = 'font-size:9px;color:var(--text-3);font-family:var(--ff-mono);';
+  d0wrap.appendChild(d0swatch);
+  d0wrap.appendChild(d0label);
+  row.appendChild(d0wrap);
+
+  // Arrow separator
+  const sep0 = document.createElement('div');
+  sep0.textContent = '→';
+  sep0.style.cssText = 'color:var(--text-3);font-size:12px;align-self:center;margin-bottom:14px;';
+  row.appendChild(sep0);
+
+  // Each step in the ladder (1-indexed days)
+  path.forEach((color, idx) => {
+    const dayNum = idx + 1;
+    const isGreen = idx >= warmCount;
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+
+    const swatch = document.createElement('div');
+    const borderCol = isGreen ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.12)';
+    swatch.style.cssText = `
+      width:28px;height:28px;border-radius:8px;
+      background:${color};
+      cursor:pointer;transition:all 200ms;
+      border:2px solid ${borderCol};
+      ${isGreen ? 'box-shadow:0 0 8px ' + color + '88;' : ''}
+    `;
+    swatch.title = isGreen
+      ? `Day ${dayNum} — Green ${idx - warmCount + 1}`
+      : `Day ${dayNum} — Recovery`;
+    swatch.onclick = () => { currentStreak = dayNum; updateAll(); };
+    swatch.onmouseenter = () => swatch.style.transform = 'scale(1.2)';
+    swatch.onmouseleave = () => swatch.style.transform = 'scale(1)';
+
+    const label = document.createElement('div');
+    label.textContent = dayNum;
+    label.style.cssText = `font-size:9px;color:${isGreen ? 'var(--accent-green)' : 'var(--text-3)'};font-family:var(--ff-mono);font-weight:${isGreen ? '600' : '400'};`;
+
+    wrap.appendChild(swatch);
+    wrap.appendChild(label);
+    row.appendChild(wrap);
+
+    // Arrow between steps (not after last)
+    if (idx < path.length - 1) {
+      const arrow = document.createElement('div');
+      arrow.textContent = '→';
+      arrow.style.cssText = 'color:var(--text-3);font-size:10px;align-self:center;margin-bottom:14px;opacity:0.5;';
+      row.appendChild(arrow);
+    }
+  });
+}
+
+/* ----------------------------------------------------------------
+   DAY DETAIL PANEL
+   Android: DayDetailBottomSheet.kt
+   Called from: CalendarDayAdapter.onItemClick()
+   ---------------------------------------------------------------- */
+function openDayDetail(date, entry) {
+  const panel    = document.getElementById('dayDetailPanel');
+  const backdrop = document.getElementById('panelBackdrop');
+  const color    = entry ? getStreakColor(entry.streak) : getStreakColor(0);
+
+  document.getElementById('ddpColorBar').style.background  = color;
+  document.getElementById('ddpDate').textContent            = formatDateLong(date);
+  document.getElementById('ddpStreak').textContent          = entry ? entry.streak : '0';
+  document.getElementById('ddpStreak').style.color          = color;
+
+  const isCompleted = entry && entry.state === 'completed';
+  const isMissed    = entry && entry.state === 'missed';
+
+  const badge = document.getElementById('ddpStatusBadge');
+  if (isCompleted) {
+    badge.textContent = '✅ Completed';
+    badge.style.background = getStreakColor(entry.streak) + '33';
+    badge.style.color = getStreakColor(entry.streak);
+  } else if (isMissed) {
+    badge.textContent = '❌ Missed';
+    badge.style.background = 'rgba(255,79,109,0.15)';
+    badge.style.color = 'var(--accent-red)';
+  } else {
+    badge.textContent = '⏳ Future';
+    badge.style.background = 'var(--bg-glass2)';
+    badge.style.color = 'var(--text-3)';
+  }
+
+  panel.classList.add('open');
+  backdrop.classList.add('open');
+
+  // Android: HapticFeedbackConstants.CLOCK_TICK
+}
+
+function closeDayDetail() {
+  document.getElementById('dayDetailPanel').classList.remove('open');
+  document.getElementById('panelBackdrop').classList.remove('open');
+}
+
+/* ----------------------------------------------------------------
+   STATS
+   Android: StreakCalculator.kt → compute(entries: List<DayEntry>)
+   ---------------------------------------------------------------- */
+function computeStats() {
+  const entries  = Object.values(HISTORY);
+  const completed = entries.filter(e => e.state === 'completed').length;
+  const total     = entries.filter(e => e.state !== 'future').length;
+  const rate      = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  let longest = 0, curr = 0;
+  Object.keys(HISTORY).sort().forEach(k => {
+    const e = HISTORY[k];
+    if (e.state === 'completed') { curr++; longest = Math.max(longest, curr); }
+    else if (e.state === 'missed') curr = 0;
+  });
+
+  document.getElementById('statCurrentStreak').textContent = currentStreak;
+  document.getElementById('statLongest').textContent        = longest;
+  document.getElementById('statTotal').textContent          = completed;
+  document.getElementById('statRate').textContent           = rate + '%';
+}
+
+/* ----------------------------------------------------------------
+   DEMO CONTROLS
+   ---------------------------------------------------------------- */
+function adjustStreak(delta) {
+  currentStreak = Math.max(0, currentStreak + delta);
+  updateAll();
+}
+
+function breakStreak() {
+  /*
+   * Android: StreakBreakManager.kt
+   * fun onStreakBroken() {
+   *   streakBreaks++
+   *   currentStreak = 0
+   *   // Recovery path grows: one more warm step added to the ladder
+   *   // buildRecoveryPath(streakBreaks) will include an extra interpolated step
+   *   saveToDatabase()
+   *   notifyWidget()
+   * }
+   *
+   * Recovery ladder logic:
+   *   - Each break adds one more warm recovery step before reaching green
+   *   - Green is always exactly 3 levels (never changes)
+   *   - Recovery steps are capped at MAX_RECOVERY_STEPS to avoid demotivation
+   *   - Visual message: "you added distance, not a cliff"
+   */
+  streakBreaks++;
+  currentStreak = 0;
+  const ladderLen = getLadderLength(streakBreaks);
+  const warmSteps = ladderLen - 3;
+  const cappedMsg = streakBreaks > (MAX_RECOVERY_STEPS - RECOVERY_BASE.length)
+    ? ' (max depth)' : '';
+  showMilestoneToast(
+    '💔',
+    `${warmSteps} recovery steps to green${cappedMsg}`
+  );
+  updateAll();
+}
+
+function updateAll() {
+  updateCompactWidget();
+  updateExpandedWidget();
+  buildFullContribGrid();
+  buildColorSwatches();
+  computeStats();
+
+  document.getElementById('demoStreakDisplay').textContent = currentStreak;
+  document.getElementById('demoStreakDisplay').style.color  = getStreakColor(currentStreak);
+  const ladderLen = getLadderLength(streakBreaks);
+  const warmCount = ladderLen - 3;
+  document.getElementById('demoInfo').textContent =
+    `breaks: ${streakBreaks} · ${warmCount} warm steps · green at day ${ladderLen - 2}`;
+
+  // Milestone check
+  if (MILESTONE_DAYS.includes(currentStreak)) {
+    const msgs = {
+      1:'First day! 🌱', 3:'Three days! ⚡', 7:'One week! 🔥',
+      14:'Two weeks! 💪', 21:'21 days! 🏅', 30:'One month! ⭐',
+      60:'60 days! 🚀', 90:'90 days! 👑', 100:'100 days! 💯',
+      180:'Half a year! 🌟', 365:'One full year! 🎊'
+    };
+    showMilestoneToast('🎉', msgs[currentStreak] || `Day ${currentStreak}!`);
+  }
+}
+
+/* ----------------------------------------------------------------
+   MILESTONE TOAST
+   ---------------------------------------------------------------- */
+let toastTimer = null;
+function showMilestoneToast(emoji, text) {
+  const toast = document.getElementById('milestoneToast');
+  document.getElementById('milestoneToastEmoji').textContent = emoji;
+  document.getElementById('milestoneToastText').textContent  = text;
+  toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+/* ----------------------------------------------------------------
+   WIDGET SIZE TOGGLES
+   ---------------------------------------------------------------- */
+function setCompactSize(size) {
+  const w = document.getElementById('compactWidget');
+  w.className = `widget widget-compact size-${size}`;
+  // Update number sizes via class already handled in CSS
+  document.getElementById('compactSizeBtn1').classList.toggle('active', size === 'small');
+  document.getElementById('compactSizeBtn2').classList.toggle('active', size === 'medium');
+  updateCompactWidget();
+}
+
+function setExpandedSize(size) {
+  const w = document.getElementById('expandedWidget');
+  w.className = `widget widget-expanded size-${size}`;
+  document.getElementById('expandedSizeBtn1').classList.toggle('active', size === '5x2');
+  document.getElementById('expandedSizeBtn2').classList.toggle('active', size === '5x3');
+  buildWidgetContribGrid();
+}
+
+/* ----------------------------------------------------------------
+   WIDGET TAP HANDLER
+   Android: PendingIntent → MainActivity / CalendarActivity
+   ---------------------------------------------------------------- */
+function handleWidgetTap(type) {
+  showMilestoneToast('📱', type === 'compact' ? 'Opens DayOne app' : 'Opens Calendar screen');
+  // Android:
+  // val intent = Intent(context, if (type == "compact") MainActivity::class.java else CalendarActivity::class.java)
+  // intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+  // val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+  // views.setOnClickPendingIntent(R.id.widgetRoot, pendingIntent)
+}
+
+/* ----------------------------------------------------------------
+   THEME TOGGLE
+   ---------------------------------------------------------------- */
+function toggleTheme() {
+  const html = document.documentElement;
+  html.setAttribute('data-theme',
+    html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+
+/* ----------------------------------------------------------------
+   INIT
+   Android: called from onViewCreated() / init widget providers
+   ---------------------------------------------------------------- */
+function init() {
+  renderMonthCalendar();
+  buildFullContribGrid();
+  buildColorSwatches();
+  updateCompactWidget();
+  updateExpandedWidget();
+  computeStats();
+  buildStreakScale();
+
+  // Set current date
+  document.getElementById('expandedDate').textContent = formatDateShort(TODAY);
+  document.getElementById('expandedHabitName').textContent = MOCK_HABIT.name;
+  document.getElementById('calHabitEmoji').textContent = MOCK_HABIT.emoji;
+  document.getElementById('calHabitName').textContent  = MOCK_HABIT.name;
+}
+
+init();
+</script>
+</body>
+</html>

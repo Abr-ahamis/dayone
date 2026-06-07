@@ -1,0 +1,21 @@
+R_DEF: Internal format may change without notice
+local
+color bg_deep
+drawable ic_launcher
+id widgetAccent
+id widgetBrand
+id widgetDate
+id widgetHabit
+id widgetIcon
+id widgetLabel
+id widgetRoot
+id widgetStatus
+id widgetStreak
+layout widget_compact
+layout widget_expanded
+string app_name
+string widget_compact_description
+string widget_expanded_description
+style Theme.DayOne
+xml compact_widget_info
+xml expanded_widget_info

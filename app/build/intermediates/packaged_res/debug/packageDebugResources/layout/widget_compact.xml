@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widgetRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#4F8EF7"
+    android:padding="12dp">
+
+    <View
+        android:id="@+id/widgetAccent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.18"
+        android:background="#0A1128" />
+
+    <TextView
+        android:id="@+id/widgetBrand"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans"
+        android:letterSpacing="0.12"
+        android:text="DayOne"
+        android:textColor="#F0F4FF"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widgetStreak"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:text="12"
+            android:textColor="#FFFFFF"
+            android:textSize="64sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widgetLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.22"
+            android:text="Days"
+            android:textColor="#DDE8FF"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widgetIcon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:text="🔥"
+        android:textSize="22sp" />
+</FrameLayout>
