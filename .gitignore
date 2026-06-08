@@ -1,0 +1,40 @@
+# Gradle / Android build output
+.gradle/
+build/
+**/build/
+
+# Local machine configuration
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Kotlin / Java
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+hs_err_pid*
+
+# Android packaged artifacts
+*.apk
+*.ap_
+*.aab
+*.aar
+*.dex
+
+# Generated signing and secrets
+*.jks
+*.keystore
+keystore.properties
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
