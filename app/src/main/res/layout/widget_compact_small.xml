@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widgetRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background">
+
+    <!-- Gloss layer for depth -->
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.22"
+        android:background="@drawable/widget_gloss" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/streakCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/bebas_neue"
+            android:includeFontPadding="false"
+            android:text="12"
+            android:textColor="#F7FFFFFF"
+            android:textSize="78sp"
+            android:shadowColor="#33000000"
+            android:shadowDy="6"
+            android:shadowRadius="16" />
+
+        <TextView
+            android:id="@+id/daysLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/dm_sans_medium"
+            android:letterSpacing="0.3"
+            android:text="DAYS"
+            android:textAllCaps="true"
+            android:textColor="#CCFFFFFF"
+            android:textSize="9sp"
+            android:layout_marginTop="-4dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/flameIcon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="14dp"
+        android:layout_marginBottom="12dp"
+        android:alpha="0.8"
+        android:text="🔥"
+        android:textSize="20sp" />
+</FrameLayout>

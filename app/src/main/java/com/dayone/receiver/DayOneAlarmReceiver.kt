@@ -17,25 +17,31 @@ import javax.inject.Inject
 class DayOneAlarmReceiver : BroadcastReceiver() {
     @Inject lateinit var repository: DayOneRepository
     @Inject lateinit var scheduler: DayOneAlarmScheduler
-    @Inject lateinit var notificationHelper: NotificationHelper
     @Inject lateinit var widgetUpdater: DayOneWidgetUpdater
 
     override fun onReceive(context: Context, intent: Intent) {
+        android.util.Log.d("DayOneReceiver", "Received intent: ${intent.action}")
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                when (DayOneAlarmScheduler.Action.from(intent.action)) {
-                    DayOneAlarmScheduler.Action.Morning -> {
-                        val result = repository.runMorningCycle()
-                        notificationHelper.showMorningNotification(result)
-                        scheduler.schedule(DayOneAlarmScheduler.Action.Morning, 6, 30)
-                    }
-                    DayOneAlarmScheduler.Action.Noon -> {
-                        repository.runNoonCycle()
+                if (intent.action == "com.dayone.SYNC_WIDGET") {
+                    val json = intent.getStringExtra("data")
+                    if (json != null) {
+                        repository.syncFromWebView(json)
                         widgetUpdater.updateAllWidgets()
-                        scheduler.schedule(DayOneAlarmScheduler.Action.Noon, 12, 0)
                     }
-                    null -> Unit
+                } else {
+                    when (DayOneAlarmScheduler.Action.from(intent.action)) {
+                        DayOneAlarmScheduler.Action.Morning -> {
+                            // repository.runMorningCycle() is removed, handle as needed or ignore
+                            scheduler.schedule(DayOneAlarmScheduler.Action.Morning, 6, 30)
+                        }
+                        DayOneAlarmScheduler.Action.Noon -> {
+                            widgetUpdater.updateAllWidgets()
+                            scheduler.schedule(DayOneAlarmScheduler.Action.Noon, 12, 0)
+                        }
+                        null -> Unit
+                    }
                 }
             } finally {
                 pendingResult.finish()

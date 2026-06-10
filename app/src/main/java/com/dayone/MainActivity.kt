@@ -18,9 +18,11 @@ import android.os.Looper
 import android.provider.MediaStore
 import android.view.View
 import android.view.WindowManager
+import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -36,7 +38,23 @@ import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.io.FileOutputStream
 
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
+import javax.inject.Inject
+
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var notificationService: com.dayone.notification.NotificationService
+    @Inject lateinit var repository: com.dayone.data.DayOneRepository
+    @Inject lateinit var preferencesStore: com.dayone.data.PreferencesStore
+    @Inject lateinit var widgetUpdater: com.dayone.widget.DayOneWidgetUpdater
+    @Inject lateinit var alarmScheduler: com.dayone.alarm.DayOneAlarmScheduler
+
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
@@ -54,6 +72,19 @@ class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             showToast(if (granted) "Notifications enabled" else "Notifications disabled")
+        }
+
+    private val soundPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val uri = result.data?.data
+                if (uri != null) {
+                    runBlocking {
+                        preferencesStore.setNotificationSound(uri.toString())
+                    }
+                    webView.evaluateJavascript("onSoundPicked('${uri.toString()}')", null)
+                }
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -101,8 +132,16 @@ class MainActivity : ComponentActivity() {
         webView.addJavascriptInterface(AndroidBridge(this), "Android")
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
+            
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                android.util.Log.e("DayOneUI", "WebView Error: ${error.description}")
+            }
         }
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                android.util.Log.d("DayOneUI", "JS Console: ${consoleMessage?.message()}")
+                return true
+            }
             override fun onShowFileChooser(
                 webView: WebView,
                 filePathCallback: ValueCallback<Array<Uri>>,
@@ -212,7 +251,61 @@ class MainActivity : ComponentActivity() {
         }
 
         @JavascriptInterface
-        fun scheduleNotification(title: String, body: String, delayMs: Long) {
+        fun getPreferences(): String {
+            val prefs = runBlocking { activity.preferencesStore.preferences.first() }
+            val json = JSONObject().apply {
+                put("darkTheme", prefs.darkTheme)
+                put("notificationsEnabled", prefs.notificationsEnabled)
+                put("notificationTime", prefs.notificationTime)
+                put("notificationSound", prefs.notificationSound)
+                put("widgetColor", prefs.widgetColor)
+                put("widgetGloss", prefs.widgetGloss)
+                put("dynamicIcon", prefs.dynamicIcon)
+            }
+            return json.toString()
+        }
+
+        @JavascriptInterface
+        fun setNotificationTime(time: String) {
+            runBlocking { 
+                activity.preferencesStore.setNotificationTime(time)
+                activity.alarmScheduler.scheduleDailyAlarms()
+            }
+        }
+
+        @JavascriptInterface
+        fun pickNotifSound() {
+            activity.runOnUiThread {
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "audio/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                }
+                activity.soundPickerLauncher.launch(Intent.createChooser(intent, "Select Notification Sound"))
+            }
+        }
+
+        @JavascriptInterface
+        fun setWidgetSettings(color: String, gloss: Boolean, dynamicIcon: Boolean) {
+            runBlocking {
+                activity.preferencesStore.setWidgetColor(color)
+                activity.preferencesStore.setWidgetGloss(gloss)
+                activity.preferencesStore.setDynamicIcon(dynamicIcon)
+                activity.widgetUpdater.updateAllWidgets()
+            }
+        }
+
+        @JavascriptInterface
+        fun testNotification() {
+            CoroutineScope(Dispatchers.IO).launch {
+                val state = activity.repository.currentState()
+                activity.runOnUiThread {
+                    activity.notificationService.showNotification(state, "Test Notification", "This is how your streak alerts will look!")
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun showTestNotification(title: String, body: String, delayMs: Long) {
             activity.runOnUiThread {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -221,27 +314,33 @@ class MainActivity : ComponentActivity() {
                     activity.requestNotificationPermission()
                     return@runOnUiThread
                 }
-                handler.postDelayed({
-                    val manager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        manager.createNotificationChannel(
-                            NotificationChannel(
-                                "dayone_daily",
-                                "Daily Reminder",
-                                NotificationManager.IMPORTANCE_DEFAULT
-                            )
-                        )
+                
+                CoroutineScope(Dispatchers.IO).launch {
+                    val state = activity.repository.currentState()
+                    activity.runOnUiThread {
+                        handler.postDelayed({
+                            activity.notificationService.showNotification(state, title, body)
+                        }, delayMs.coerceAtLeast(0L))
                     }
-                    val notification = NotificationCompat.Builder(activity, "dayone_daily")
-                        .setSmallIcon(R.drawable.ic_launcher)
-                        .setContentTitle(title)
-                        .setContentText(body)
-                        .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-                        .setAutoCancel(true)
-                        .build()
-                    manager.notify(1001, notification)
-                }, delayMs.coerceAtLeast(0L))
+                }
             }
+        }
+
+        @JavascriptInterface
+        fun cancelScheduledNotifications() {
+            activity.runOnUiThread {
+                val manager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.cancelAll()
+            }
+        }
+
+        @JavascriptInterface
+        fun syncWidgetState(json: String) {
+            // We will implement this to update widgets via a broadcast or direct repository update
+            val intent = Intent("com.dayone.SYNC_WIDGET")
+            intent.putExtra("data", json)
+            intent.setPackage(activity.packageName)
+            activity.sendBroadcast(intent)
         }
     }
 }

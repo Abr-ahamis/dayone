@@ -6,7 +6,7 @@
     android:background="#4F8EF7"
     android:padding="12dp">
 
-    <View
+    <ImageView
         android:id="@+id/widgetAccent"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

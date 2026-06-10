@@ -18,7 +18,9 @@ object AppModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): DayOneDatabase =
-        Room.databaseBuilder(context, DayOneDatabase::class.java, "dayone.db").build()
+        Room.databaseBuilder(context, DayOneDatabase::class.java, "dayone.db")
+            .fallbackToDestructiveMigration()
+            .build()
 
     @Provides
     fun dao(database: DayOneDatabase): DayOneDao = database.dao()

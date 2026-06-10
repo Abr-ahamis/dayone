@@ -9,15 +9,9 @@ data class StreakStateEntity(
     val habitName: String = "No Sugar",
     val emoji: String = "🔥",
     val colorHex: String = "#4F8EF7",
-    val startEpochDay: Long,
     val currentStreak: Int = 0,
-    val longestStreak: Int = 0,
-    val totalCompleted: Int = 0,
-    val streakBreaks: Int = 0,
-    val verseIndex: Int = 1,
-    val lastUpdateEpochMillis: Long = 0L,
-    val lastNoonUpdateEpochDay: Long = 0L,
-    val lastMorningEpochDay: Long = 0L
+    val status: String = "On Track",
+    val lastUpdateEpochMillis: Long = 0L
 )
 
 @Entity(tableName = "calendar_history")

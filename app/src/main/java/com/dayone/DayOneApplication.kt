@@ -11,6 +11,7 @@ class DayOneApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.dayone.notification.NotificationChannelManager.registerChannels(this)
         alarmScheduler.scheduleDailyAlarms()
     }
 }
