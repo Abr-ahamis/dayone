@@ -32,7 +32,10 @@ The debug APK is generated at:
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
-
+If you want you can file the apk in the releases
+```text
+https://github.com/Abr-ahamis/dayone/releases
+```
 ## Install
 
 With a device or emulator connected:
@@ -58,7 +61,3 @@ sor/                              Original source/prototype HTML and notes
 gradle/wrapper/                   Gradle wrapper files required to build
 ```
 
-## Notes
-
-- Keep `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`, and `gradle/wrapper/gradle-wrapper.properties` committed.
-- Do not commit `app/build/`, `.gradle/`, `local.properties`, or generated APK files.
